@@ -1,52 +1,48 @@
+# Import necessary libraries
 import numpy as np
-import pandas as pd
-from sklearn.datasets import load_boston
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
-import matplotlib.pyplot as plt
 
-# Load the Boston Housing dataset
-boston = load_boston()
-X = boston.data
-y = boston.target
+# Load your dataset here
+# Assuming X and y are your features and target variables
+# Replace X and y with your own dataset
+# Example:
+# X, y = load_data()
 
-# Split data into initial training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-# Further split the training data into incremental chunks
-# We’ll divide the training data into 4 chunks
-incremental_chunks = 4
-chunk_size = len(X_train) // incremental_chunks
-X_chunks = [X_train[i * chunk_size:(i + 1) * chunk_size] for i in range(incremental_chunks)]
-y_chunks = [y_train[i * chunk_size:(i + 1) * chunk_size] for i in range(incremental_chunks)]
+# Split the data into train and test sets
+X_train_full, X_test, y_train_full, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
 # Standardize the data
 scaler = StandardScaler()
-X_train = scaler.fit_transform(X_train)
+X_train_full = scaler.fit_transform(X_train_full)
 X_test = scaler.transform(X_test)
-X_chunks = [scaler.transform(chunk) for chunk in X_chunks]
 
-# Define the neural network model
+# Split the training data into parts for incremental learning
+num_parts = 5  # Number of parts to divide the training data into
+X_train_parts = np.array_split(X_train_full, num_parts)
+y_train_parts = np.array_split(y_train_full, num_parts)
+
+# Define the model
 model = Sequential([
-    Dense(64, activation='relu', input_shape=(X_train.shape[1],)),
+    Dense(64, activation='relu', input_shape=(X_train_full.shape[1],)),
     Dense(32, activation='relu'),
     Dense(16, activation='relu'),
-    Dense(1)
+    Dense(1)  # Output layer
 ])
 
 # Compile the model
 model.compile(optimizer='adam', loss='mse', metrics=['mae'])
 
-# Train incrementally on each chunk
-for i, (X_chunk, y_chunk) in enumerate(zip(X_chunks, y_chunks)):
-    print(f"\nTraining on chunk {i+1}/{incremental_chunks}")
-    model.fit(X_chunk, y_chunk, epochs=50, batch_size=16, verbose=1)
+# Incrementally train the model on each part
+for i, (X_train_part, y_train_part) in enumerate(zip(X_train_parts, y_train_parts)):
+    print(f"Training on part {i+1}/{num_parts}")
+    model.fit(X_train_part, y_train_part, epochs=10, batch_size=16, verbose=1)
 
-# Evaluate the model on the reserved test set
+# Test the model on the hold-out test set
 y_pred = model.predict(X_test)
 
 # Calculate performance metrics
@@ -54,15 +50,6 @@ mse = mean_squared_error(y_test, y_pred)
 mae = mean_absolute_error(y_test, y_pred)
 rmse = np.sqrt(mse)
 
-print(f"\nMean Absolute Error (MAE): {mae:.2f}")
+print(f"Mean Absolute Error (MAE): {mae:.2f}")
 print(f"Mean Squared Error (MSE): {mse:.2f}")
 print(f"Root Mean Squared Error (RMSE): {rmse:.2f}")
-
-# Scatter plot of actual vs. predicted prices
-plt.figure(figsize=(8, 8))
-plt.scatter(y_test, y_pred, alpha=0.7)
-plt.xlabel("Actual Prices")
-plt.ylabel("Predicted Prices")
-plt.title("Actual vs Predicted Prices")
-plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], color='red')
-plt.show()
